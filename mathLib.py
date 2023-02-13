@@ -111,25 +111,26 @@ def stringToList(inp):
     return new
 
 def ShuntingYard(inp):
-    def unpack_parentheses(stack, queue):
-        while stack and stack[-1] != ")":
-            queue.append(stack.pop())
-        if stack:
-            stack.pop()
-        while stack and stack[-1] != "(":
-            unpack_parentheses(stack, queue)
-        if stack:
-            stack.pop()
+    def unpackParantheses(stack, queue):
+        for i in reversed(list(stack.data)):
+            if i == ")":
+                stack.Pop()
+                unpackParantheses(stack, queue)
+            elif i == "(":
+                stack.Pop()
+                return
+            else:
+                item = stack.Pop()
+                queue.Push(item)
 
     inp = stringToList(inp)
     stack = Stack()
     queue = Queue()
     for i in inp:
-        i = str(i)
         if i.isnumeric() or isFloat(i):
             queue.Push(i)
         elif i == ")":
-            unpack_parentheses(stack, queue)
+            unpackParantheses(stack, queue)
         elif i == "(":
             stack.Push(i)
         elif i in ops:
@@ -146,6 +147,7 @@ def ShuntingYard(inp):
     for i in range(len(stack.data)):
         queue.Push(stack.Pop())
     return queue
+
 
 def isFloat(x):
     try:
