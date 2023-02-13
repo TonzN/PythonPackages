@@ -125,6 +125,7 @@ def ShuntingYard(inp):
     stack = Stack()
     queue = Queue()
     for i in inp:
+        i = str(i)
         if i.isnumeric() or isFloat(i):
             queue.Push(i)
         elif i == ")":
