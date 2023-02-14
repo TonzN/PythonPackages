@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name='DevelopmentPackages',
     version='0.0.2.5',
-    packages=["Python"],
+    packages=["PythonPackages"],
     install_requires=[
           'numpy',
           "pygame",
