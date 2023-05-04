@@ -4,7 +4,6 @@ import random
 import time
 import os
 import numpy as np
-import DevelopmentPackages.datastructures as datastructures
 import string
 
 Bools = {
@@ -42,11 +41,8 @@ class RenderQueue:
         self.Queue.append(n)
 
     def AddObjects(self, n):
-        for i in n:
-            if type(n[i]) == list:
-                self.AddObjects(n[i])
-            else:
-                self.Push(n[i])
+        for i in range(len(n)):
+            self.Push(n[i])
 
     def Pop(self):
         if self.Queue:
@@ -78,14 +74,12 @@ class NewWindow:
         self.screen = pygame.display.set_mode(size)
         
     def RenderObjects(self, Layers = None):
-        queue = RenderQueue()
         for i in MainRenderQueue.Queue:
             i.Redraw()
         if Layers:
             for i in Layers:
-                queue.AddObjects(i)
-            for i in queue.Queue:
-                i.Redraw()
+                for v in i:
+                    v.Redraw()
         
     def NextFrame(self, Layers = None):
         self.Running = EventHandler()
@@ -136,7 +130,7 @@ def EventHandler(): #Finder hendelser for vinduet
     return True
 
 class Rect:
-    def __init__(self, screen, x, y, width, height, c1, c2 = False, Render = True): #innehold til en Ui
+    def __init__(self, screen, x, y, width, height, c1, c2 = False, Mainqueue = True, Render = True): #innehold til en Ui
         self.pos     = [x,y]
         self.RQ = MainRenderQueue
         self.width  = width
@@ -148,7 +142,9 @@ class Rect:
         self.Border = False
         self.BorderColor = (200,200,200)
         self.screen = screen
+        self.rounded_edges = False
         self.autoScale = False#AutoScale
+        self.Text = False
         self.AddToRenderQueue(self.RQ)
         self.rect = pygame.Rect(x, y, self.width, self.height)
         if Render:
@@ -172,19 +168,33 @@ class Rect:
         self.width, self.height = (ScreenSize[0]/100)*self.width, (ScreenSize[1]/100)*self.height
 
     def Redraw(self):
-       if self.Render:         
-            pygame.draw.rect(self.screen, self.c1, (self.pos[0], self.pos[1], self.width, self.height))
+       if self.Render:     
+            if self.rounded_edges:
+                pygame.draw.rect(self.screen, self.c1, self.rect, 20, 7)
+                pygame.draw.rect(self.screen, self.c1, (self.pos[0]+7, self.pos[1]+7, self.width-14, self.height-14))
+            else:
+                 self.rect = pygame.Rect(self.pos[0], self.pos[1], self.width, self.height)
+                 pygame.draw.rect(self.screen, self.c1, self.rect)
+
             if self.Border:
                 pygame.draw.rect(self.screen, self.BorderColor, self.rect, self.borderThickness)
+            if self.Text:
+                self.AddText()
     
-    def AddText(self, tC, tT, tS):
-        font = pygame.font.Font('freesansbold.ttf', tS) #font
-        text = font.render(tT, self.Render, tC)
+    def AddText(self, tC = False, tT = False, tS = False):
+        if not self.Text:
+            self.tC = tC
+            self.tT = tT
+            self.tS = tS
+        font = pygame.font.Font('freesansbold.ttf', self.tS) #font
+        text = font.render(self.tT, self.Render, self.tC)
         textRect = text.get_rect()
         textRect.center = (self.pos[0] + (self.width // 2), self.pos[1] + (self.height // 2)) #plasserer teksten i midten
         self.screen.blit(text, textRect)
+        self.Text = True
 
     def AddToRenderQueue(self, queue = MainRenderQueue):
+        self.RQ = queue
         queue.Push(self)
     
     def Collision(self):
@@ -242,6 +252,7 @@ class TextLabel():
                 text = font.render(self.tT, self.Render, self.tC)
                 textRect = text.get_rect()
                 textRect.center = (self.pos[0] + (self.width // 2), self.pos[1] + (self.height // 2)) #plasserer teksten i midten
+        
                 self.screen.blit(text, textRect)
     
 class Button(Rect):
@@ -304,31 +315,40 @@ class grid:
         self._screenW = int(np.floor(size[0]/cellsize))
         self._screenH = int(np.floor(size[1]/cellsize))
         self._pos = np.zeros((self._screenW, self._screenH))
-        self.EnableNode = False
+        self.renderqueue = MainRenderQueue
+        self.rounded_edges = False
+        self.render = True
 
         self.grid = [[] for i in range(int(np.floor(size[1]/cellsize)))] #makes the grid layout
+        self.grid_data = {} # Data for grid management 
 
         self.colorHistory = [] 
 
         self.regionColorHistory = {}  #Access regions color history
 
-    def generate(self, screen):
+    def generate(self, screen, type = "Button", textdata = None):
         for i in range(self._screenH):
             for z in range(self._screenW):
                 color = self.colors[0]
                 if (i+z)%2==0 and self.pattern == True: #makes checker patternsS
                     color = self.colors[1]
-                button = Button(screen, z*self.cellSize, i*self.cellSize, self.cellSize, self.cellSize, color, color)
-                if self.EnableNode:
-                    x = random.choice(string.ascii_letters)
-                    x2 = random.choice(string.ascii_letters)
-                    x3 = random.choice(string.ascii_letters)
-                    button.Node = datastructures.g_Node(x+x2+x3, (z*self.cellSize, i*self.cellSize))
 
+               #Type = Button
+                block = Button(screen, z*self.cellSize + (1+z)*self.spacing, i*self.cellSize + (1+i)*self.spacing, self.cellSize, self.cellSize, color, color)
+                block.Render = self.render
                 if self.border:
-                    button.Border = True
+                    block.Border = True
+                    block.BorderColor = self.borderColor
+                    block.borderThickness = self.borderThickness
+
+                if self.rounded_edges:
+                    block.rounded_edges = True
         
-                self.grid[i].append(button)
+                if type == "TextButton":
+                    block.AddText(textdata[0], textdata[1], textdata[2])
+
+            
+                self.grid[i].append(block)
     
     def colorRegion(self, region, colour): #For manually changing a region of colors
         for x in range(region[1][0], region[1][1]):
@@ -336,11 +356,9 @@ class grid:
                 self.grid[x][z].c1 = colour
         self.colorHistory.append(region)
     
-    def colorBlock(self, pos, colour):
+    def colorBlock(self, pos, colour): #pos gotta be the indexes of the grid formated in a tuple
         self.grid[pos[1]][pos[0]].c1 = colour
 
-        #---- For djikstra ---#
-        self.grid[pos[1]][pos[0]].Wall = True
 
     def refreshColours(self):
         for region in self.colorHistory:
@@ -350,7 +368,7 @@ class grid:
         
         self.colorHistory = []
     
-    def refreshRegion(self, region, oldColors = False): #refres a region of cells region --> key 
+    def refreshRegion(self, region, oldColors = False): #refresh a region of cells region --> key 
         if not oldColors: #so you can revert to default colorS
             oldColors = (self.colors[0])
         for i in self.regionColorHistory[region]:
@@ -358,3 +376,8 @@ class grid:
     
     def refreshBlock(self, pos):    
         self.grid[pos[1]][pos[0]].c1 = (self.colors[0])
+
+    def get_zero_grid(self, fill = False):
+        empty_grid = np.zeros((len(self.grid[0]), len(self.grid)))
+                   
+        return empty_grid
