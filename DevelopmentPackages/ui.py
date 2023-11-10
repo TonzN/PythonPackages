@@ -57,6 +57,7 @@ class RenderQueue:
             self.Queue.pop(item)
             
 MainRenderQueue = RenderQueue()
+Anim_objects = {}
 
 class NewWindow:
     def __init__(self, Name = "MyGame", TargetFps = 60, BGColor = (60,60,60), Size = (800,600)):
@@ -104,23 +105,13 @@ class NewWindow:
         
         fps.tick(self.Target_fps)
     
-    def create_anim(self, obj, start, target, time, vector = False): #move start to target by vector, time in seconds
-        if LinearSearch(MainRenderQueue.Queue, obj, "v"): 
-            if not vector:
-                delta = time*self.Target_fps
-                x_incr = (target[0]- start[0])/delta
-                y_incr = (target[1]- start[1])/delta
-                Anim_list = [(obj.pos[0]+x_incr*t, obj.pos[1]+y_incr*t) for t in range(1, delta+1)] #animation -> list of cords.
-                self.animated_obj[obj] = Anim_list
-                print(Anim_list)
-    
     def animate(self):
-        for obj in self.animated_obj:
-            if len(self.animated_obj[obj]) > 0:
-                obj.pos = self.animated_obj[obj][0]
-                del self.animated_obj[obj][0]
+        for obj in Anim_objects:
+            if len(Anim_objects) > 0:
+                obj.pos = Anim_objects[0]
+                del Anim_objects[obj][0]
             else:
-                del self.animated_obj[obj] #animation done running    
+                del Anim_objects[obj] #animation done running    
         
     def rightclick(self):
         click  = pygame.mouse.get_pressed()
@@ -136,6 +127,16 @@ class NewWindow:
                 Bools["CD"] = True
                 return True
 
+def create_anim(obj, start, target, time, vector = False): #move start to target by vector, time in seconds
+    if LinearSearch(MainRenderQueue.Queue, obj, "v"): 
+        if not vector:
+            delta = time*60
+            x_incr = (target[0]- start[0])/delta
+            y_incr = (target[1]- start[1])/delta
+            Anim_list = [(obj.pos[0]+x_incr*t, obj.pos[1]+y_incr*t) for t in range(1, delta+1)] #animation -> list of cords.
+            Anim_objects[obj] = Anim_list
+            print(Anim_list)
+    
 def runEvents(Objects = False): #Runs object functions. 
     #Objects er bare en array med alle objektene som har events so skal kjøres
     if Objects:
