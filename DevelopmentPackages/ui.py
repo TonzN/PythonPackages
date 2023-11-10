@@ -4,20 +4,21 @@ import random
 import time
 import os
 import numpy as np
-import string
 
 Bools = {
     "CD": False
 }
 
-KeyBindFunctions = {
-}
+fps = pygame.time.Clock()
 
-def LinearSearch(l, n):
+def LinearSearch(l, n, return_type = "i"):
     # l = list
     for i, v in enumerate(l):
         if v == n:
-            return i
+            if return_type == "i":
+                return i
+            elif return_type == "v":
+                return v
     return False
 
 ScreenSize = None
@@ -34,16 +35,18 @@ class Folder:
         self.Objs = {}
 
 class RenderQueue:
-    def __init__(self, Queue = []):
+    def __init__(self, Queue=None):
+        if Queue is None:
+            Queue = []  # Create a new list if Queue is not provided
         self.Queue = Queue
     
     def Push(self, n):
-        self.Queue.append(n)
-
-    def AddObjects(self, n):
-        for i in range(len(n)):
-            self.Push(n[i])
-
+        self.Queue.append(n)        
+                    
+    def add_queue(self, queue):
+        for i in queue.Queue:
+            self.Push(i)
+    
     def Pop(self):
         if self.Queue:
           del self.Queue[0]
@@ -52,7 +55,7 @@ class RenderQueue:
         item = LinearSearch(self.Queue, n)
         if item:
             self.Queue.pop(item)
-
+            
 MainRenderQueue = RenderQueue()
 
 class NewWindow:
@@ -68,45 +71,67 @@ class NewWindow:
         self.BGColor = BGColor
         self.mousepos = False
         self.Running = True
+        self.animated_obj = {}
         pygame.display.set_caption(Name)
     
     def reSizeScreen(self, size):
         self.screen = pygame.display.set_mode(size)
         
     def RenderObjects(self, Layers = None):
+        layer_queue = RenderQueue()
         for i in MainRenderQueue.Queue:
             i.Redraw()
         if Layers:
-            for i in Layers:
-                for v in i:
-                    v.Redraw()
+            for queue in Layers:
+                layer_queue.add_queue(queue)
+            for i in layer_queue.Queue:
+                i.Redraw()
         
     def NextFrame(self, Layers = None):
         self.Running = EventHandler()
         self.mousepos = mouseP = pygame.mouse.get_pos()
         if self.Running == False:
            endPygame()
-           
+        
+        self.screen.fill(self.BGColor)
+        self.animate()
         self.RenderObjects(Layers)
-        pygame.display.update()
-
+        pygame.display.flip()
+        
       #  if time.time() - self.CDdel >= 0.05: 
        ##    Bools["CD"] = False
         #-------FPS--------#
-        fps = pygame.time.Clock()
+        
         fps.tick(self.Target_fps)
-        self.screen.fill(self.BGColor)
     
+    def create_anim(self, obj, start, target, time, vector = False): #move start to target by vector, time in seconds
+        if LinearSearch(MainRenderQueue.Queue, obj, "v"): 
+            if not vector:
+                delta = time*self.Target_fps
+                x_incr = (target[0]- start[0])/delta
+                y_incr = (target[1]- start[1])/delta
+                Anim_list = [(obj.pos[0]+x_incr*t, obj.pos[1]+y_incr*t) for t in range(1, delta+1)] #animation -> list of cords.
+                self.animated_obj[obj] = Anim_list
+                print(Anim_list)
+    
+    def animate(self):
+        for obj in self.animated_obj:
+            if len(self.animated_obj[obj]) > 0:
+                obj.pos = self.animated_obj[obj][0]
+                del self.animated_obj[obj][0]
+            else:
+                del self.animated_obj[obj] #animation done running    
+        
     def rightclick(self):
         click  = pygame.mouse.get_pressed()
-        if click[0] == 1 :
+        if click[2] == 1 :
             if Bools["CD"] == False:
                 Bools["CD"] = True
                 return True
     
     def leftclick(self):
         click  = pygame.mouse.get_pressed()
-        if click[2] == 1:
+        if click[0] == 1:
             if Bools["CD"] == False:
                 Bools["CD"] = True
                 return True
@@ -123,14 +148,11 @@ def EventHandler(): #Finder hendelser for vinduet
             return False
         if e.type == pygame.MOUSEBUTTONUP:
             Bools["CD"] = False
-        if e.type == pygame.KEYDOWN:
-            if e.key in KeyBindFunctions:
-                KeyBindFunctions[e.key]()
-
+            
     return True
 
 class Rect:
-    def __init__(self, screen, x, y, width, height, c1, c2 = False, Mainqueue = True, Render = True): #innehold til en Ui
+    def __init__(self, screen, x, y, width, height, c1, c2 = False, Render = True): #innehold til en Ui
         self.pos     = [x,y]
         self.RQ = MainRenderQueue
         self.width  = width
@@ -142,9 +164,7 @@ class Rect:
         self.Border = False
         self.BorderColor = (200,200,200)
         self.screen = screen
-        self.rounded_edges = False
         self.autoScale = False#AutoScale
-        self.Text = False
         self.AddToRenderQueue(self.RQ)
         self.rect = pygame.Rect(x, y, self.width, self.height)
         if Render:
@@ -152,14 +172,14 @@ class Rect:
                 self.AutoScale()
             pygame.draw.rect(screen, c1, self.rect)
 
-    def Click(self): #finner mus klikk op posisjonen returnerer True viss du klikker
+    def Click(self, overide=False): #finner mus klikk op posisjonen returnerer True viss du klikker
         mouseP = pygame.mouse.get_pos()
         click  = pygame.mouse.get_pressed()
         if self.Render:
             if self.pos[0] + self.width > mouseP[0] > self.pos[0] and self.pos[1] + self.height > mouseP[1] > self.pos[1]:  
                 # Hvis mus x og y kordnitaer er riktig/ peker på knappen
                 pygame.draw.rect(self.screen, self.c1, (self.pos[0], self.pos[1], self.width, self.height))
-                if click[0] == 1 and Bools["CD"] == False:
+                if click[0] == 1 and Bools["CD"] == False or click[0] == 1 and overide==True:
                     Bools["CD"] = True
                     return True
                 return False
@@ -168,69 +188,40 @@ class Rect:
         self.width, self.height = (ScreenSize[0]/100)*self.width, (ScreenSize[1]/100)*self.height
 
     def Redraw(self):
-       if self.Render:     
-            if self.rounded_edges:
-                pygame.draw.rect(self.screen, self.c1, self.rect, 20, 7)
-                pygame.draw.rect(self.screen, self.c1, (self.pos[0]+7, self.pos[1]+7, self.width-14, self.height-14))
-            else:
-                 self.rect = pygame.Rect(self.pos[0], self.pos[1], self.width, self.height)
-                 pygame.draw.rect(self.screen, self.c1, self.rect)
-
+       if self.Render:         
+            pygame.draw.rect(self.screen, self.c1, (self.pos[0], self.pos[1], self.width, self.height))
             if self.Border:
                 pygame.draw.rect(self.screen, self.BorderColor, self.rect, self.borderThickness)
-            if self.Text:
-                self.AddText()
     
-    def AddText(self, tC = False, tT = False, tS = False):
-        if not self.Text:
-            self.tC = tC
-            self.tT = tT
-            self.tS = tS
-        font = pygame.font.Font('freesansbold.ttf', self.tS) #font
-        text = font.render(self.tT, self.Render, self.tC)
+    def AddText(self, tC, tT, tS):
+        font = pygame.font.Font('freesansbold.ttf', tS) #font
+        text = font.render(tT, self.Render, tC)
         textRect = text.get_rect()
         textRect.center = (self.pos[0] + (self.width // 2), self.pos[1] + (self.height // 2)) #plasserer teksten i midten
         self.screen.blit(text, textRect)
-        self.Text = True
 
     def AddToRenderQueue(self, queue = MainRenderQueue):
-        self.RQ = queue
         queue.Push(self)
     
     def Collision(self):
         pass
 
-class Line():
-    def __init__(self, screen, color, start, end, width):
-        self.color = color
-        self.screen = screen
-        self.start = start
-        self.end = end
-        self.width = width
-        MainRenderQueue.Push(self)
-    
-    def Redraw(self):
-        pygame.draw.line(self.screen, self.color, self.start, self.end, self.width) 
-
 class Ball():
-    def __init__(self, screen, radius, color1, Pos, Render = True):
-        self.pos = Pos
+    def __init__(self, screen, x, y, radius, color1, Render = True):
+        self.x = x
+        self.y = y
         self.radius = radius
         self.color = color1
         self.Visible = Render
         self.Screen = screen
-        pygame.draw.circle(screen, self.color, (self.pos[0], self.pos[1]), self.radius)
-
-    def move(self, x, y):
-        self.pos[0] += x
-        self.pos[1] += y
+        pygame.draw.circle(screen, self.color, (self.x, self.y), self.radius)
     
     def AddToRenderQueue(self, RQ = MainRenderQueue):
         RQ.Push(self)
     
     def Redraw(self):
        # print(self.color, (self.x, self.y), self.radius)
-        pygame.draw.circle(self.Screen, self.color, (self.pos[0], self.pos[1]), self.radius)
+        pygame.draw.circle(self.Screen, self.color, (self.x, self.y), self.radius)
        
 class TextLabel():
         #Info om varibaler
@@ -252,7 +243,6 @@ class TextLabel():
                 text = font.render(self.tT, self.Render, self.tC)
                 textRect = text.get_rect()
                 textRect.center = (self.pos[0] + (self.width // 2), self.pos[1] + (self.height // 2)) #plasserer teksten i midten
-        
                 self.screen.blit(text, textRect)
     
 class Button(Rect):
@@ -289,9 +279,10 @@ class Frame(Rect):
         super().__init__(screen,x, y, width, height, c1)    
 
 class image():
-    def __init__(self, screen, img, pos, width = 75, height = 75):
+    def __init__(self, screen, img, pos, width = 60, height = 60):
         self.img = pygame.image.load(img)
-        self.img = pygame.transform.scale(self.img, (width-5,height))
+        self.img = pygame.transform.scale(self.img, (width-2.5,height))
+        self.size = [width, height]
         screen.blit(self.img, pos)
         self.screen = screen
         self.pos = pos
@@ -306,15 +297,16 @@ class grid:
             (255,255,255),
             (222,184,135)
         ]
+        self.size = size
         self.pattern = pattern
         self.cellSize = cellsize
         self.border = False 
         self.borderThickness = 2 
         self.spacing = 0 #spacing between each cell
         self.borderColor = (20,20,20)
-        self._screenW = int(np.floor(size[0]/cellsize))
-        self._screenH = int(np.floor(size[1]/cellsize))
-        self._pos = np.zeros((self._screenW, self._screenH))
+        self._gridW = int(np.floor(size[0]/cellsize))
+        self._gridH = int(np.floor(size[1]/cellsize))
+        self._pos = np.zeros((self._gridW, self._gridH))
         self.renderqueue = MainRenderQueue
         self.rounded_edges = False
         self.render = True
@@ -326,15 +318,39 @@ class grid:
 
         self.regionColorHistory = {}  #Access regions color history
 
-    def generate(self, screen, type = "Button", textdata = None):
-        for i in range(self._screenH):
-            for z in range(self._screenW):
+    def generate(self, screen, type = "Button", textdata = None): #for entire screens
+        for i in range(self._gridH):
+            for z in range(self._gridW):
                 color = self.colors[0]
                 if (i+z)%2==0 and self.pattern == True: #makes checker patternsS
                     color = self.colors[1]
 
                #Type = Button
                 block = Button(screen, z*self.cellSize + (1+z)*self.spacing, i*self.cellSize + (1+i)*self.spacing, self.cellSize, self.cellSize, color, color)
+                block.Render = self.render
+                if self.border:
+                    block.Border = True
+                    block.BorderColor = self.borderColor
+                    block.borderThickness = self.borderThickness
+
+                if self.rounded_edges:
+                    block.rounded_edges = True
+        
+                if type == "TextButton":
+                    block.AddText(textdata[0], textdata[1], textdata[2])
+
+            
+                self.grid[i].append(block)
+                
+    def generate_at(self, position, screen, type="Button", textdata = None):
+        for i in range(self._gridH):
+            for z in range(self._gridW):
+                color = self.colors[0]
+                if (i+z)%2==0 and self.pattern == True: #makes checker patternsS
+                    color = self.colors[1]
+
+                       #Type = Button
+                block = Button(screen, position[0]+z*self.cellSize + (1+z)*self.spacing, position[1]+i*self.cellSize + (1+i)*self.spacing, self.cellSize, self.cellSize, color, color)
                 block.Render = self.render
                 if self.border:
                     block.Border = True
@@ -359,7 +375,6 @@ class grid:
     def colorBlock(self, pos, colour): #pos gotta be the indexes of the grid formated in a tuple
         self.grid[pos[1]][pos[0]].c1 = colour
 
-
     def refreshColours(self):
         for region in self.colorHistory:
           for x in range(region[1][0], region[1][1]): #Y axis
@@ -381,3 +396,9 @@ class grid:
         empty_grid = np.zeros((len(self.grid[0]), len(self.grid)))
                    
         return empty_grid
+    
+    def delete_obj(self):
+        for i in range(len(self.grid)):
+            for z in range(len(self.grid[i])):
+                MainRenderQueue.Remove(self.grid[i][z])
+                
