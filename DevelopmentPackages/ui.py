@@ -107,8 +107,8 @@ class NewWindow:
     
     def animate(self):
         for obj in Anim_objects:
-            if len(Anim_objects) > 0:
-                obj.pos = Anim_objects[0]
+            if len(Anim_objects[obj]) > 0:
+                obj.pos = Anim_objects[obj][0]
                 del Anim_objects[obj][0]
             else:
                 del Anim_objects[obj] #animation done running    
