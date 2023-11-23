@@ -9,6 +9,9 @@ Bools = {
     "CD": False
 }
 
+KeyBindFunctions = {
+}
+
 fps = pygame.time.Clock()
 
 def LinearSearch(l, n, return_type = "i"):
@@ -73,6 +76,7 @@ class NewWindow:
         self.mousepos = False
         self.Running = True
         self.animated_obj = {}
+        self.custom_bg = False
         pygame.display.set_caption(Name)
     
     def reSizeScreen(self, size):
@@ -96,6 +100,10 @@ class NewWindow:
         
         self.screen.fill(self.BGColor)
         self.animate()
+        if self.custom_bg:
+            for i in self.custom_bg.Queue:
+                i.Redraw()
+                
         self.RenderObjects(Layers)
         pygame.display.flip()
         
@@ -149,13 +157,16 @@ def EventHandler(): #Finder hendelser for vinduet
             return False
         if e.type == pygame.MOUSEBUTTONUP:
             Bools["CD"] = False
+        if e.type == pygame.KEYDOWN:
+            if e.key in KeyBindFunctions:
+                KeyBindFunctions[e.key][0](KeyBindFunctions[e.key][1])
             
     return True
 
 class Rect:
-    def __init__(self, screen, x, y, width, height, c1, c2 = False, Render = True): #innehold til en Ui
+    def __init__(self, screen, x, y, width, height, c1, c2 = False, Render = True, RenderQueue = MainRenderQueue): #innehold til en Ui
         self.pos     = [x,y]
-        self.RQ = MainRenderQueue
+        self.RQ = RenderQueue
         self.width  = width
         self.height = height
         self.c1     = c1
@@ -189,7 +200,8 @@ class Rect:
         self.width, self.height = (ScreenSize[0]/100)*self.width, (ScreenSize[1]/100)*self.height
 
     def Redraw(self):
-       if self.Render:         
+       if self.Render:        
+            self.c1 = (min(255, self.c1[0]), min(255, self.c1[1]), min(255, self.c1[2]))
             pygame.draw.rect(self.screen, self.c1, (self.pos[0], self.pos[1], self.width, self.height))
             if self.Border:
                 pygame.draw.rect(self.screen, self.BorderColor, self.rect, self.borderThickness)
@@ -204,6 +216,22 @@ class Rect:
     def AddToRenderQueue(self, queue = MainRenderQueue):
         queue.Push(self)
     
+    def border_collision(self, screen):
+        screen_w = screen[0]
+        screen_h = screen[1]
+        #left
+        if self.pos[0] < 0:
+            self.pos[0] = 0
+        #right
+        if self.pos[0] + self.width > screen_w:
+            self.pos[0] = screen_w - self.width
+        #top
+        if self.pos[1] < 0:
+            self.pos[1] = 0
+        #down
+        if self.pos[1] + self.height > screen_h:
+            self.pos[1] = screen_h - self.height
+        
     def Collision(self):
         pass
 
@@ -247,10 +275,10 @@ class TextLabel():
                 self.screen.blit(text, textRect)
     
 class Button(Rect):
-        def __init__(self,screen, x, y, width, height, c1, c2, Event = False, Input = False, Render = True):
+        def __init__(self,screen, x, y, width, height, c1, c2, Event = False, Input = False, Render = True, rq = MainRenderQueue):
             self.Event = Event #Hendelse etter du trykker
             self.Input = Input #Input = funksjon input
-            super().__init__(screen, x, y, width, height, c1, c2, Render)
+            super().__init__(screen, x, y, width, height, c1, c2, Render, rq)
 
         def CheckEvents(self): #Methods Uten return
             hit = self.Click()
@@ -319,7 +347,7 @@ class grid:
 
         self.regionColorHistory = {}  #Access regions color history
 
-    def generate(self, screen, type = "Button", textdata = None): #for entire screens
+    def generate(self, screen, type = "Button", textdata = None, rq = MainRenderQueue): #for entire screens
         for i in range(self._gridH):
             for z in range(self._gridW):
                 color = self.colors[0]
@@ -327,7 +355,7 @@ class grid:
                     color = self.colors[1]
 
                #Type = Button
-                block = Button(screen, z*self.cellSize + (1+z)*self.spacing, i*self.cellSize + (1+i)*self.spacing, self.cellSize, self.cellSize, color, color)
+                block = Button(screen, z*self.cellSize + (1+z)*self.spacing, i*self.cellSize + (1+i)*self.spacing, self.cellSize, self.cellSize, color, color, False, False, True, rq)
                 block.Render = self.render
                 if self.border:
                     block.Border = True
@@ -373,6 +401,11 @@ class grid:
                 self.grid[x][z].c1 = colour
         self.colorHistory.append(region)
     
+    def color_map_grid(self, colour_map):
+        for x in range(self._gridH):
+            for z in range(self._gridW): #on the x axis
+                self.grid[x][z].c1 = colour_map[x][z]
+        
     def colorBlock(self, pos, colour): #pos gotta be the indexes of the grid formated in a tuple
         self.grid[pos[1]][pos[0]].c1 = colour
 
