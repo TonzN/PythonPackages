@@ -173,6 +173,7 @@ class Rect:
         self.c2     = c2
         self.Render = Render
         self.borderThickness = 1
+        self.hover = False
         self.Border = False
         self.BorderColor = (200,200,200)
         self.screen = screen
@@ -190,19 +191,24 @@ class Rect:
         if self.Render:
             if self.pos[0] + self.width > mouseP[0] > self.pos[0] and self.pos[1] + self.height > mouseP[1] > self.pos[1]:  
                 # Hvis mus x og y kordnitaer er riktig/ peker på knappen
-                pygame.draw.rect(self.screen, self.c1, (self.pos[0], self.pos[1], self.width, self.height))
-                if click[0] == 1 and Bools["CD"] == False or click[0] == 1 and overide==True:
+                self.hover = True
+                if click[0] == 1 and Bools["CD"] == False or click[0] == 1 and overide==True: #overide used to overide the cd
                     Bools["CD"] = True
                     return True
                 return False
+            else:
+                self.hover = False
 
     def AutoScale(self): #In %
         self.width, self.height = (ScreenSize[0]/100)*self.width, (ScreenSize[1]/100)*self.height
 
-    def Redraw(self):
+    def Redraw(self): #redraws based on params
        if self.Render:        
             self.c1 = (min(255, self.c1[0]), min(255, self.c1[1]), min(255, self.c1[2]))
-            pygame.draw.rect(self.screen, self.c1, (self.pos[0], self.pos[1], self.width, self.height))
+            if not self.hover:
+                pygame.draw.rect(self.screen, self.c1, (self.pos[0], self.pos[1], self.width, self.height))
+            else:
+                pygame.draw.rect(self.screen, self.c2, (self.pos[0], self.pos[1], self.width, self.height))
             if self.Border:
                 pygame.draw.rect(self.screen, self.BorderColor, self.rect, self.borderThickness)
     
@@ -213,10 +219,10 @@ class Rect:
         textRect.center = (self.pos[0] + (self.width // 2), self.pos[1] + (self.height // 2)) #plasserer teksten i midten
         self.screen.blit(text, textRect)
 
-    def AddToRenderQueue(self, queue = MainRenderQueue):
+    def AddToRenderQueue(self, queue = MainRenderQueue): #add to renderqueue -> decides render order
         queue.Push(self)
     
-    def border_collision(self, screen):
+    def border_collision(self, screen): 
         screen_w = screen[0]
         screen_h = screen[1]
         #left
@@ -265,14 +271,14 @@ class TextLabel():
             self.Render = Render
             self.tT = tT #tType
             MainRenderQueue.Push(self)
+            self.font = pygame.font.Font('freesansbold.ttf', self.tS) #preiniates fonts -> saves a lot of time
+            self.text = self.font.render(self.tT, self.Render, self.tC)
+            self.textRect = self.text.get_rect()
+            self.textRect.center = (self.pos[0] + (self.width // 2), self.pos[1] + (self.height // 2)) #plasserer teksten i midten
 
         def Redraw(self):
-            if self.tT:
-                font = pygame.font.Font('freesansbold.ttf', self.tS) #font
-                text = font.render(self.tT, self.Render, self.tC)
-                textRect = text.get_rect()
-                textRect.center = (self.pos[0] + (self.width // 2), self.pos[1] + (self.height // 2)) #plasserer teksten i midten
-                self.screen.blit(text, textRect)
+            if self.tT and self.Render:  
+                self.screen.blit(self.text, self.textRect)
     
 class Button(Rect):
         def __init__(self,screen, x, y, width, height, c1, c2, Event = False, Input = False, Render = True, rq = MainRenderQueue):
@@ -308,9 +314,13 @@ class Frame(Rect):
         super().__init__(screen,x, y, width, height, c1)    
 
 class image():
-    def __init__(self, screen, img, pos, width = 60, height = 60):
-        self.img = pygame.image.load(img)
-        self.img = pygame.transform.scale(self.img, (width-2.5,height))
+    def __init__(self, screen, img, pos, width = 60, height = 60, preloaded = False):
+        if not preloaded: 
+            self.img = pygame.image.load(img)
+            self.img = pygame.transform.scale(self.img, (width-2.5,height))
+        else: #preloading improves loading times. 
+            self.img = img
+            
         self.size = [width, height]
         screen.blit(self.img, pos)
         self.screen = screen
@@ -329,6 +339,7 @@ class grid:
         self.size = size
         self.pattern = pattern
         self.cellSize = cellsize
+        self.hover_color = False
         self.border = False 
         self.borderThickness = 2 
         self.spacing = 0 #spacing between each cell
@@ -355,7 +366,12 @@ class grid:
                     color = self.colors[1]
 
                #Type = Button
-                block = Button(screen, z*self.cellSize + (1+z)*self.spacing, i*self.cellSize + (1+i)*self.spacing, self.cellSize, self.cellSize, color, color, False, False, True, rq)
+                if self.hover_color:
+                   color2 = self.hover_color
+                else:
+                   color2 = color
+                   
+                block = Button(screen, z*self.cellSize + (1+z)*self.spacing, i*self.cellSize + (1+i)*self.spacing, self.cellSize, self.cellSize, color, color2, False, False, True, rq)
                 block.Render = self.render
                 if self.border:
                     block.Border = True
@@ -427,7 +443,7 @@ class grid:
         self.grid[pos[1]][pos[0]].c1 = (self.colors[0])
 
     def get_zero_grid(self, fill = False):
-        empty_grid = np.zeros((len(self.grid[0]), len(self.grid)))
+        empty_grid = np.zeros((len(self.grid), len(self.grid[0])))
                    
         return empty_grid
     
@@ -435,4 +451,5 @@ class grid:
         for i in range(len(self.grid)):
             for z in range(len(self.grid[i])):
                 MainRenderQueue.Remove(self.grid[i][z])
+                
                 
